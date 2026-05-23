@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeLog | Professional Multi-User Trading Journal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.43.4/dist/umd/supabase.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 font-sans min-h-screen transition-colors duration-200">
+
+    <!-- 1. SYSTEM AUTHENTICATION OVERLAY LAYER -->
+    <div id="auth-screen" class="fixed inset-0 bg-gray-100 dark:bg-gray-950 flex items-center justify-center z-50 p-4">
+        <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl border border-gray-200 dark:border-gray-700 w-full max-w-md shadow-2xl">
+            <h1 class="text-3xl font-bold text-center text-indigo-600 dark:text-indigo-400 mb-2">📈 TradeLog</h1>
+            <p class="text-gray-500 dark:text-gray-400 text-center text-sm mb-6">Multi-User Cloud Trading Journal</p>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-gray-500 dark:text-gray-400 mb-1">Email Address</label>
+                    <input type="email" id="auth-email" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-3 text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500" placeholder="trader@example.com">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase font-semibold text-gray-500 dark:text-gray-400 mb-1">Password</label>
+                    <input type="password" id="auth-password" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-3 text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500" placeholder="••••••••">
+                </div>
+                
+                <div class="flex gap-4 pt-2">
+                    <button id="btn-login" onclick="handleLogin()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-lg transition shadow-lg shadow-indigo-600/20">Log In</button>
+                    <button id="btn-signup" onclick="handleSignup()" class="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-medium py-3 px-4 rounded-lg transition">Sign Up</button>
+                </div>
+                <p id="auth-error" class="text-red-600 dark:text-red-400 text-xs font-mono text-center mt-2 p-2 bg-red-500/10 rounded border border-red-500/20 hidden"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. SYSTEM CAPITAL ONBOARDING AND CHANGE OVERLAY MODAL -->
+    <div id="capital-modal" class="fixed inset-0 bg-gray-950/80 backdrop-blur-sm hidden flex items-center justify-center z-40 p-4">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 w-full max-w-sm shadow-2xl relative">
+            <button id="close-capital-modal-btn" onclick="hideCapitalModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-sm">✕</button>
+            
+            <h3 id="capital-modal-title" class="text-xl font-bold text-indigo-600 dark:text-indigo-400 mb-2">💰 Account Activation</h3>
+            <p class="text-gray-500 dark:text-gray-400 text-xs mb-4">Define your baseline starting balance setup. This forms the primary financial anchor calculation for metric logs.</p>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Starting Capital ($)</label>
+                    <input type="number" id="input-initial-capital" placeholder="5000.00" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded p-2.5 text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <button onclick="saveInitialCapital()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded transition shadow-lg shadow-indigo-600/20">Confirm Balance</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. PRODUCTION DASHBOARD VIEW PANEL LAYER -->
+    <div id="app-screen" class="hidden flex flex-col lg:flex-row min-h-screen">
+        <!-- Sidebar Navigation & Input Controls Panel Component -->
+        <aside class="w-full lg:w-80 bg-white dark:bg-gray-800 p-6 space-y-6 flex-shrink-0 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-gray-700">
+            <div class="space-y-6">
+                <h1 class="text-2xl font-bold text-indigo-600 dark:text-indigo-400 tracking-wide">📈 TradeLog</h1>
+                
+                <!-- Trade Form Inputs Layout Panel Structure -->
+                <div class="p-4 bg-gray-50 dark:bg-gray-900/60 rounded-xl border border-gray-200 dark:border-gray-700/50 space-y-3">
+                    <p class="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-300">Log A New Position</p>
+                    <div class="space-y-2 text-xs">
+                        <div>
+                            <label class="block text-gray-500 dark:text-gray-400 mb-1">Asset Symbol</label>
+                            <input type="text" id="trade-symbol" placeholder="EURUSD" class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-2 rounded text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500 uppercase">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-gray-500 dark:text-gray-400 mb-1">Order Type</label>
+                                <select id="trade-type" class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-2 rounded text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500">
+                                    <option value="BUY">BUY</option>
+                                    <option value="SELL">SELL</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-gray-500 dark:text-gray-400 mb-1">Volume (Lots)</label>
+                                <input type="number" step="0.01" id="trade-volume" placeholder="0.10" class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-2 rounded text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-gray-500 dark:text-gray-400 mb-1">Open Price</label>
+                                <input type="number" step="0.00001" id="trade-open" placeholder="1.08500" class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-2 rounded text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-500 dark:text-gray-400 mb-1">Close Price</label>
+                                <input type="number" step="0.00001" id="trade-close" placeholder="1.09200" class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-2 rounded text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-gray-500 dark:text-gray-400 mb-1">Net Profit / Loss ($)</label>
+                            <input type="number" step="0.01" id="trade-profit" placeholder="150.00" class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-2 rounded text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <button onclick="submitManualTrade()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded mt-2 transition shadow-md shadow-indigo-600/10">Save Trade Record</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Meta Ledger Node -->
+            <div class="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                <div class="flex justify-between items-center">
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold truncate w-32" id="user-display-email">Trader Account</p>
+                    <button onclick="handleLogout()" class="text-xs text-red-600 dark:text-red-400 hover:underline block">Log Out</button>
+                </div>
+                
+                <div class="bg-gray-50 dark:bg-gray-900/40 p-3 rounded-lg border border-gray-100 dark:border-gray-700/50 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Starting Capital:</p>
+                        <div class="flex items-center gap-1.5">
+                            <span id="live-starting-capital" class="font-mono font-semibold text-gray-800 dark:text-gray-200">$0.00</span>
+                            <button onclick="showCapitalModal(true)" class="text-[10px] bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-500/20 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition">Edit</button>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center pt-1 border-t border-gray-200 dark:border-gray-700/60">
+                        <p class="text-xs font-medium text-gray-600 dark:text-gray-300">Net Account Balance:</p>
+                        <span id="live-mt5-balance" class="font-mono font-bold text-green-600 dark:text-green-400 text-base">$0.00</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Components Canvas Panel -->
+        <main class="flex-1 p-8 overflow-y-auto">
+            <header class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+                <h2 class="text-3xl font-semibold">Trading Journey Dashboard</h2>
+                <div class="flex items-center gap-4 self-start sm:self-auto">
+                    <button onclick="toggleThemeMode()" class="p-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium transition duration-200 shadow-sm">
+                        <span id="theme-btn-text">☀️ Light Mode</span>
+                    </button>
+                    <span class="bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 px-3 py-1 rounded-full text-sm font-medium border border-indigo-200 dark:border-indigo-500/30">Manual Sync Active</span>
+                </div>
+            </header>
+
+            <!-- Statistics Aggregation Metric Row Blocks -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <p class="text-gray-500 dark:text-gray-400 text-sm">Total Profit/Loss</p>
+                    <p class="text-2xl font-bold transition-colors" id="total-pnl">$0.00</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <p class="text-gray-500 dark:text-gray-400 text-sm">Total Trades</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white" id="total-trades">0</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <p class="text-gray-500 dark:text-gray-400 text-sm">Win Rate</p>
+                    <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400" id="win-rate">0%</p>
+                </div>
+            </div>
+
+            <!-- Historical Graphic Canvas Curve -->
+            <div class="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 mb-8 shadow-sm">
+                <h3 class="text-xl font-medium mb-4">Equity Curve</h3>
+                <div class="h-64 bg-gray-50 dark:bg-gray-900/50 rounded p-4">
+                    <canvas id="equityChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Position Data Logging List Grid Table -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 class="text-xl font-medium">Recent Activity Log</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-sm uppercase">
+                                <th class="p-4">TIME</th>
+                                <th class="p-4">PAIR</th>
+                                <th class="p-4">OPEN</th>
+                                <th class="p-4">CLOSE</th>
+                                <th class="p-4">TYPE</th>
+                                <th class="p-4">LOTS</th>
+                                <th class="p-4">PnL</th>
+                                <th class="p-4 text-right">ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trade-rows" class="divide-y divide-gray-200 dark:divide-gray-700">
+                            <tr><td colspan="8" class="p-8 text-center text-gray-400">Loading tracking environment engines context ledger markers...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- SCRIPT INFRASTRUCTURE HANDLERS -->
+    <script>
+        // UPDATED: Derived from your validated JWT signature references parameters
+        const SUPABASE_URL = "https://sakmmgreqzfusxowujxc.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNha21tZ3JlcXpmdXN4b3d1anhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MTA2NTYsImV4cCI6MjA5NTA4NjY1Nn0.asteosqj_LZU9Yp3VPQTt09kvCNx9UdgcSELdKkTPu0";
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let equityChartInstance = null;
+        let currentUser = null;
+        let realtimeChannel = null;
+        let userInitialCapital = 10000; 
+
+        function applyInitialThemeMode() {
+            const preservedChoice = localStorage.getItem('tradelog-theme');
+            const rootNode = document.documentElement;
+            const textEl = document.getElementById('theme-btn-text');
+
+            if (preservedChoice === 'light') {
+                rootNode.classList.remove('dark');
+                textEl.innerText = "🌙 Dark Mode";
+            } else {
+                rootNode.classList.add('dark');
+                textEl.innerText = "☀️ Light Mode";
+            }
+            if (currentUser) loadJournalData();
+        }
+
+        function toggleThemeMode() {
+            const rootNode = document.documentElement;
+            const textEl = document.getElementById('theme-btn-text');
+
+            if (rootNode.classList.contains('dark')) {
+                rootNode.classList.remove('dark');
+                localStorage.setItem('tradelog-theme', 'light');
+                textEl.innerText = "🌙 Dark Mode";
+            } else {
+                rootNode.classList.add('dark');
+                localStorage.setItem('tradelog-theme', 'dark');
+                textEl.innerText = "☀️ Light Mode";
+            }
+            if (currentUser) loadJournalData();
+        }
+
+        async function checkUserSession() {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                if (error) throw error;
+                
+                if (session) {
+                    currentUser = session.user;
+                    document.getElementById('auth-screen').classList.add('hidden');
+                    document.getElementById('user-display-email').innerText = currentUser.email;
+                    
+                    if (currentUser.user_metadata && currentUser.user_metadata.initial_capital) {
+                        userInitialCapital = parseFloat(currentUser.user_metadata.initial_capital);
+                        document.getElementById('app-screen').classList.remove('hidden');
+                        document.getElementById('capital-modal').classList.add('hidden');
+                        loadJournalData(); 
+                        initializeRealtimeSync(); 
+                    } else {
+                        showCapitalModal(false); 
+                    }
+                } else {
+                    document.getElementById('auth-screen').classList.remove('hidden');
+                    document.getElementById('app-screen').classList.add('hidden');
+                    document.getElementById('capital-modal').classList.add('hidden');
+                    if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+                    realtimeChannel = null;
+                }
+            } catch (err) {
+                showError("Session configuration fault: " + err.message);
+            }
+        }
+
+        function showCapitalModal(isManualUpdate = false) {
+            const titleEl = document.getElementById('capital-modal-title');
+            const inputEl = document.getElementById('input-initial-capital');
+            const closeBtn = document.getElementById('close-capital-modal-btn');
+            
+            if (isManualUpdate) {
+                titleEl.innerText = "⚙️ Update Base Capital";
+                inputEl.value = userInitialCapital; 
+                closeBtn.classList.remove('hidden'); 
+            } else {
+                titleEl.innerText = "💰 Account Activation";
+                inputEl.value = '';
+                closeBtn.classList.add('hidden'); 
+            }
+            
+            document.getElementById('capital-modal').classList.remove('hidden');
+        }
+
+        function hideCapitalModal() {
+            document.getElementById('capital-modal').classList.add('hidden');
+        }
+
+        async function saveInitialCapital() {
+            const inputVal = parseFloat(document.getElementById('input-initial-capital').value);
+            if(isNaN(inputVal) || inputVal <= 0) {
+                alert("Please enter a valid starting capital amount greater than 0.");
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase.auth.updateUser({
+                    data: { initial_capital: inputVal }
+                });
+                if (error) throw error;
+                
+                userInitialCapital = inputVal;
+                currentUser = data.user;
+                
+                document.getElementById('capital-modal').classList.add('hidden');
+                document.getElementById('app-screen').classList.remove('hidden');
+                
+                loadJournalData();
+                if (!realtimeChannel) initializeRealtimeSync();
+            } catch(err) {
+                alert("Error updating account settings: " + err.message);
+            }
+        }
+
+        function initializeRealtimeSync() {
+            if (realtimeChannel) return;
+
+            realtimeChannel = supabase
+                .channel('table-records-sync')
+                .on('postgres_changes', { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'trades' 
+                }, (payload) => {
+                    loadJournalData();
+                })
+                .subscribe();
+        }
+
+        async function handleSignup() {
+            setButtonsLoading(true);
+            showError('');
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value;
+            
+            if(!email || !password) {
+                setButtonsLoading(false);
+                return showError("Please enter both email and password characters.");
+            }
+
+            try {
+                const { error } = await supabase.auth.signUp({ email, password });
+                if (error) throw error;
+                alert("Signup complete! You can try logging in now.");
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                setButtonsLoading(false);
+            }
+        }
+
+        async function handleLogin() {
+            setButtonsLoading(true);
+            showError('');
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value;
+
+            if(!email || !password) {
+                setButtonsLoading(false);
+                return showError("Please enter both email and password characters.");
+            }
+
+            try {
+                const { error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) throw error;
+                checkUserSession();
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                setButtonsLoading(false);
+            }
+        }
+
+        async function handleLogout() {
+            if (realtimeChannel) {
+                await supabase.removeChannel(realtimeChannel);
+                realtimeChannel = null;
+            }
+            await supabase.auth.signOut();
+            currentUser = null;
+            checkUserSession();
+        }
+
+        function showError(msg) {
+            const errEl = document.getElementById('auth-error');
+            if (msg) { errEl.innerText = msg; errEl.classList.remove('hidden'); }
+            else { errEl.classList.add('hidden'); }
+        }
+
+        function setButtonsLoading(isLoading) {
+            const loginBtn = document.getElementById('btn-login');
+            const signupBtn = document.getElementById('btn-signup');
+            if (isLoading) {
+                loginBtn.disabled = true; signupBtn.disabled = true;
+                loginBtn.innerText = "Processing...";
+            } else {
+                loginBtn.disabled = false; signupBtn.disabled = false;
+                loginBtn.innerText = "Log In";
+            }
+        }
+
+        async function submitManualTrade() {
+            if (!currentUser) return;
+
+            const symbol = document.getElementById('trade-symbol').value.trim().toUpperCase();
+            const type = document.getElementById('trade-type').value;
+            const volume = parseFloat(document.getElementById('trade-volume').value);
+            const openPrice = parseFloat(document.getElementById('trade-open').value);
+            const closePrice = document.getElementById('trade-close').value.trim();
+            const profit = parseFloat(document.getElementById('trade-profit').value);
+
+            if (!symbol || isNaN(volume) || isNaN(openPrice) || !closePrice || isNaN(profit)) {
+                alert("Please fill out all input fields correctly before saving.");
+                return;
+            }
+
+            const newTradePayload = {
+                user_id: currentUser.id,
+                time: new Date().toISOString(),
+                symbol: symbol,
+                open_price: openPrice,
+                close_price: closePrice,
+                type: type,
+                volume: volume,
+                profit: profit
+            };
+
+            const { error } = await supabase.from('trades').insert([newTradePayload]);
+
+            if (error) {
+                alert("Failed to secure position: " + error.message);
+            } else {
+                document.getElementById('trade-symbol').value = '';
+                document.getElementById('trade-volume').value = '';
+                document.getElementById('trade-open').value = '';
+                document.getElementById('trade-close').value = '';
+                document.getElementById('trade-profit').value = '';
+            }
+        }
+
+        async function deleteTrade(tradeId) {
+            if(!confirm("Are you sure you want to completely delete this logged entry row?")) return;
+            const { error } = await supabase.from('trades').delete().eq('id', tradeId);
+            if (error) alert("Deletion failure context: " + error.message);
+        }
+
+        async function loadJournalData() {
+            if (!currentUser) return;
+            try {
+                document.getElementById('live-starting-capital').innerText = '$' + userInitialCapital.toLocaleString(undefined, {minimumFractionDigits: 2});
+
+                const { data: trades, error } = await supabase
+                    .from('trades')
+                    .select('*')
+                    .order('time', { ascending: false });
+
+                if (error) throw error;
+
+                const tableBody = document.getElementById('trade-rows');
+                if (!trades || trades.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-gray-400">Your journal dashboard tracking ledger is completely empty. Add a trade on the left to start!</td></tr>`;
+                    document.getElementById('live-mt5-balance').innerText = '$' + userInitialCapital.toLocaleString(undefined, {minimumFractionDigits: 2});
+                    document.getElementById('total-trades').innerText = '0';
+                    document.getElementById('total-pnl').innerText = '$0.00';
+                    document.getElementById('win-rate').innerText = '0%';
+                    if (equityChartInstance) equityChartInstance.destroy();
+                    return;
+                }
+
+                const historicalClosedTrades = trades.filter(t => t.close_price !== "RUNNING");
+                let chronologicalTrades = [...historicalClosedTrades].reverse();
+                
+                let totalProfit = 0;
+                let winningTrades = 0;
+
+                chronologicalTrades.forEach((trade) => {
+                    totalProfit += parseFloat(trade.profit) || 0;
+                    if (parseFloat(trade.profit) > 0) winningTrades++;
+                });
+
+                let currentCalculatedBalance = userInitialCapital + totalProfit;
+                document.getElementById('live-mt5-balance').innerText = '$' + currentCalculatedBalance.toLocaleString(undefined, {minimumFractionDigits: 2});
+
+                let balanceHistory = [userInitialCapital]; 
+                let chartLabels = ['Start'];
+                let rollingProfitTracker = 0;
+
+                chronologicalTrades.forEach((trade, index) => {
+                    rollingProfitTracker += parseFloat(trade.profit) || 0;
+                    balanceHistory.push(userInitialCapital + rollingProfitTracker);
+                    chartLabels.push(`Trade ${index + 1}`);
+                });
+
+                let tableHTML = '';
+                trades.forEach((trade) => {
+                    const profitNum = parseFloat(trade.profit) || 0;
+                    const isProfit = profitNum >= 0;
+                    
+                    const profitClass = isProfit ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+                    const formattedProfit = isProfit ? `+$${profitNum.toFixed(2)}` : `-$${Math.abs(profitNum).toFixed(2)}`;
+                    const typeClass = trade.type.includes('BUY') ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-red-600 dark:text-red-400 font-semibold';
+                    
+                    let formattedClose = trade.close_price;
+                    if (!isNaN(parseFloat(trade.close_price))) {
+                        formattedClose = parseFloat(trade.close_price).toFixed(5);
+                    }
+
+                    const displayTime = trade.time.replace('T', ' ').substring(0, 19);
+
+                    tableHTML += `
+                        <tr class="hover:bg-gray-100/50 dark:hover:bg-gray-700/30 transition-colors">
+                            <td class="p-4 text-gray-500 dark:text-gray-400 text-sm font-mono">${displayTime}</td>
+                            <td class="p-4 font-semibold">${trade.symbol}</td>
+                            <td class="p-4 font-mono">${parseFloat(trade.open_price).toFixed(5)}</td>
+                            <td class="p-4 font-mono">${formattedClose}</td>
+                            <td class="p-4 ${typeClass}">${trade.type}</td>
+                            <td class="p-4 font-mono">${parseFloat(trade.volume).toFixed(2)}</td>
+                            <td class="p-4 ${profitClass} font-semibold">${formattedProfit}</td>
+                            <td class="p-4 text-right">
+                                <button onclick="deleteTrade('${trade.id}')" class="text-xs bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 dark:border-red-500/30 text-red-600 dark:text-red-400 px-2 py-1 rounded transition">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                tableBody.innerHTML = tableHTML;
+
+                document.getElementById('total-trades').innerText = historicalClosedTrades.length;
+                
+                const pnlEl = document.getElementById('total-pnl');
+                pnlEl.innerText = (totalProfit >= 0 ? '+$' : '-$') + Math.abs(totalProfit).toFixed(2);
+                pnlEl.className = `text-2xl font-bold ${totalProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`;
+
+                const winRate = historicalClosedTrades.length > 0 ? ((winningTrades / historicalClosedTrades.length) * 100).toFixed(1) : 0;
+                document.getElementById('win-rate').innerText = `${winRate}%`;
+
+                const isDarkActive = document.documentElement.classList.contains('dark');
+                const gridContrastColor = isDarkActive ? '#374151' : '#e5e7eb';
+                const labelContrastColor = isDarkActive ? '#9ca3af' : '#4b5563';
+
+                if (equityChartInstance) equityChartInstance.destroy();
+                const ctx = document.getElementById('equityChart').getContext('2d');
+                equityChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: chartLabels,
+                        datasets: [{
+                            label: 'Account Balance Trendline ($)',
+                            data: balanceHistory,
+                            borderColor: '#6366f1',
+                            backgroundColor: isDarkActive ? 'rgba(99, 102, 241, 0.03)' : 'rgba(99, 102, 241, 0.08)',
+                            fill: true,
+                            tension: 0.15
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { labels: { color: labelContrastColor } }
+                        },
+                        scales: { 
+                            y: { 
+                                grid: { color: gridContrastColor },
+                                ticks: { color: labelContrastColor }
+                            }, 
+                            x: { 
+                                grid: { display: false },
+                                ticks: { color: labelContrastColor }
+                            } 
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error("Dashboard compilation pipeline trace failure:", error);
+            }
+        }
+
+        window.onload = () => {
+            applyInitialThemeMode();
+            checkUserSession();
+        };
+    </script>
+</body>
+</html>
